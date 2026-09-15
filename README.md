@@ -110,3 +110,22 @@ command is:
 
 This command uses the information in `data.dvc` to download the
 corresponding data from the configured DVC remote.
+
+## Question 8
+
+After checking out the older Git commit that contained the first version of
+`data.dvc` and then running `dvc checkout`, the folders
+`food11_processed` and `food11_processed_mini` were no longer present.
+
+Only `food11_raw` remained.
+
+This happened because Git restored the older `data.dvc` pointer, and
+`dvc checkout` updated the local data directory so that it matched the
+dataset version referenced by that older commit.
+
+After switching back to the `main` branch and running `dvc checkout` again,
+the latest data version is restored, including:
+
+- `food11_raw`
+- `food11_processed`
+- `food11_processed_mini`
