@@ -3,3 +3,4 @@ mlflow.db
 mlruns/
 __pycache__/
 *.pyc
+image*.png
