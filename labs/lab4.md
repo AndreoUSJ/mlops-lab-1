@@ -141,3 +141,18 @@ When I ran `docker compose down -v`, Docker also removed the named volume.
 
 After starting the stack again, MLflow was empty and the registered model was
 gone because its database and artifacts had been stored in that volume.
+
+
+## Question 11
+
+Docker Compose is mainly designed to run services on one machine.
+
+If I wanted to run several replicas of the inference service behind a load
+balancer, I would need an orchestration platform such as Kubernetes or Docker
+Swarm.
+
+For MLflow to survive the failure of one machine, I would also need persistent
+storage and a database that are available outside a single host.
+
+Docker Compose does not provide automatic multi-machine scheduling,
+load balancing, failover, or high availability.
