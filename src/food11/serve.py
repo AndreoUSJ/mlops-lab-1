@@ -1,17 +1,14 @@
 import io
 import os
+from typing import Annotated
 
-import mlflow
 import mlflow.pyfunc
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 from torchvision import transforms
 
-
-# ---------------------------------------------------------
-# MLflow configuration
-# ---------------------------------------------------------
+import mlflow
 
 MLFLOW_TRACKING_URI = os.getenv(
     "MLFLOW_TRACKING_URI",
@@ -23,32 +20,12 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 MODEL_URI = "models:/food11@champion"
 
 
-# ---------------------------------------------------------
-# Load the model once when the application starts
-# ---------------------------------------------------------
-
-print(f"MLflow tracking URI: {MLFLOW_TRACKING_URI}")
-print(f"Loading model: {MODEL_URI}")
-
-model = mlflow.pyfunc.load_model(MODEL_URI)
-
-print("Model loaded successfully.")
-
-
-# ---------------------------------------------------------
-# FastAPI application
-# ---------------------------------------------------------
-
 app = FastAPI(
     title="Food-11 Classification API",
     description="Classify food images using the Food-11 ResNet18 model.",
     version="1.0.0",
 )
 
-
-# ---------------------------------------------------------
-# Food-11 classes
-# ---------------------------------------------------------
 
 CLASSES = [
     "Bread",
@@ -65,11 +42,6 @@ CLASSES = [
 ]
 
 
-# ---------------------------------------------------------
-# Image preprocessing
-# Must match preprocessing used during training
-# ---------------------------------------------------------
-
 transform = transforms.Compose(
     [
         transforms.Resize((128, 128)),
@@ -82,21 +54,40 @@ transform = transforms.Compose(
 )
 
 
-# ---------------------------------------------------------
-# Health endpoint
-# ---------------------------------------------------------
+model = None
+
+
+@app.on_event("startup")
+def load_model():
+    global model
+
+    if os.environ.get("SKIP_MODEL"):
+        print("SKIP_MODEL is set. Model loading skipped.")
+        return
+
+    print(f"MLflow tracking URI: {MLFLOW_TRACKING_URI}")
+    print(f"Loading model: {MODEL_URI}")
+
+    model = mlflow.pyfunc.load_model(MODEL_URI)
+
+    print("Model loaded successfully.")
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# ---------------------------------------------------------
-# Prediction endpoint
-# ---------------------------------------------------------
-
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(
+    file: Annotated[UploadFile, File()],
+):
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Model is not loaded.",
+        )
+
     try:
         contents = await file.read()
 
@@ -110,35 +101,27 @@ async def predict(file: UploadFile = File(...)):
             detail="The uploaded file is not a valid image.",
         )
 
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         raise HTTPException(
             status_code=400,
             detail=f"Could not read image: {error}",
         )
 
-    # Preprocess image
     image_tensor = transform(image)
-
-    # Add batch dimension:
-    # [3, 128, 128] -> [1, 3, 128, 128]
     input_batch = image_tensor.unsqueeze(0)
-
-    # MLflow pyfunc accepts numpy input
     model_input = input_batch.numpy()
 
     try:
         predictions = model.predict(model_input)
 
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
             detail=f"Model prediction failed: {error}",
         )
 
-    # Convert model output back to a tensor
     logits = torch.as_tensor(predictions)
 
-    # Convert logits to probabilities
     probabilities = torch.softmax(
         logits,
         dim=1,
