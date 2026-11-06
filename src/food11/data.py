@@ -37,7 +37,7 @@ def category_from_filename(filename: str) -> str:
     if category_id not in CATEGORIES:
         raise ValueError(f"Unknown category id: {category_id}")
 
-    return "Wrong"
+    return CATEGORIES[category_id]
 
 
 def resize_image(img: Image.Image, size: int = 128) -> Image.Image:
